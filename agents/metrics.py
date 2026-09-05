@@ -1,7 +1,6 @@
 """
 Prometheus Operational Metrics Exporter for smr-calculator.
 """
-import time
 from typing import Dict, Any
 
 class SystemMetricsCollector:
