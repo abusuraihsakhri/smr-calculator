@@ -148,7 +148,7 @@
     }
   });
 
-  function csvCell(value) {
+  function csvCell(value, columnIndex) {
     let text = String(value);
     // Protect spreadsheet imports against CSV formula injection from labels.
     if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
@@ -168,7 +168,7 @@
       lines.push(['stratum', row.stratum, item.observed, item.expected, item.smr,
         item.ci_lower, item.ci_upper, item.confidence_level, item.excess_deaths]);
     });
-    const blob = new Blob([lines.map(line => line.map(csvCell).join(',')).join('\r\n') + '\r\n'],
+    const blob = new Blob([lines.map(line => line.map((value, index) => csvCell(value, index)).join(',')).join('\r\n') + '\r\n'],
       {type: 'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
