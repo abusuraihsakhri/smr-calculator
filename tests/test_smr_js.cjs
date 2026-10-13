@@ -26,9 +26,10 @@ test('aggregated SMR uses sums, not average stratum SMRs', () => {
   assert.equal(result.excess_deaths, 2);
 });
 test('invalid inputs are not coerced to zeros', () => {
-  for (const [o,e] of [[-1,1],[1.5,1],[1,0],[1,-1],['',1],[true,1],[1,''],[0,Infinity]]) {
+  for (const [o,e] of [[-1,1],[1.5,1],[1,0],[1,-1],['',1],[true,1],[1,''],[0,Infinity],[1,1e-320]]) {
     assert.throws(() => calculate(o,e));
   }
+  assert.deepEqual(require('../web/smr.js').validate('2', '3.5'), {observed: 2, expected: 3.5});
   assert.throws(() => aggregate([]));
   assert.throws(() => aggregate([{observed:2,expected:0}]));
   assert.throws(() => calculate(1, 1, 0));
