@@ -1,264 +1,95 @@
 # SMR Calculator
 
-> **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
+An observed-to-expected standardized mortality ratio (SMR) estimator for epidemiology and public-health analyses. The primary calculator runs entirely in a web browser without Python, a backend, or external JavaScript dependencies.
 
-<div align="center">
+## Features
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+- Computes indirect-standardization **SMR = observed / expected** (reference 1) and its ×100 representation (reference 100).
+- **90%, 95%, or 99% exact Poisson (Garwood) confidence intervals**, treating the expected count as fixed.
+- Excess deaths (observed minus expected) and percentage difference from expectation.
+- Stratified CSV input with required **observed** and **expected** columns, optional **stratum** column, aggregate results, previews and downloadable output.
+- Python functions, CLI, FastAPI endpoint, and regression tests.
 
-</div>
+The browser calculator is at [web/index.html](web/index.html). Open it directly or serve the web directory on any static HTTP server. A GitHub Pages workflow publishes that directory from the **master** branch. Whether the public URL is live depends on repository Pages configuration and a successful deployment.
 
----
+## Statistical method
 
-## 📖 What It Does
+Given observed deaths O and expected deaths E > 0:
 
-Standardized Mortality Ratio Calculator with clinical decision support functions:
-- **MELD-Na Score**: Liver disease severity assessment (UNOS guidelines)
-- **QTc Correction**: QT interval correction using Bazett's formula
-- **BMI Z-Score**: Pediatric growth assessment with WHO reference
-- **HbA1c Conversion**: Convert between HbA1c and estimated average glucose
-- **APRI & FIB-4**: Liver fibrosis assessment scores
-- **SMR Processing**: Batch CSV processing with clinical calculations
+SMR = O / E; excess deaths = O − E.
 
----
+For two-sided confidence level 1 − α, the Garwood exact Poisson limits are:
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+- Lower = 0 when O = 0, otherwise χ²(α/2, 2O) / (2E).
+- Upper = χ²(1 − α/2, 2(O+1)) / (2E).
 
-### 🔬 Clinical Calculation Functions
+For indirect standardization, expected deaths are normally the sum of stratum-specific population or person-time multiplied by the corresponding reference rates. **Expected counts must already be calculated and supplied.** Observed counts must be nonnegative integers; expected counts must be positive and finite.
 
-- **`calculate_meld_na()`**: MELD-Na score for liver transplant priority
-- **`calculate_qtc()`**: QTc interval correction (Bazett's formula)
-- **`calculate_bmi_z()`**: BMI Z-score for pediatric growth charts
-- **`convert_hba1c()`**: HbA1c ↔ eAG conversion (ADA formula)
-- **`calculate_apri_fib4()`**: APRI and FIB-4 liver fibrosis scores
-- **`assess_row()`**: Auto-detect calculation type from input data
-- **`process_csv()`**: Batch process CSV files with clinical data
+The calculation assumes Poisson-distributed observed counts and fixed expected counts. It does not propagate uncertainty in reference rates or account for confounding and selection. An SMR above 1 means observed mortality exceeds that expected from the chosen reference rates, but it is not evidence of causation. See [Liddell (1984)](https://pmc.ncbi.nlm.nih.gov/articles/PMC1052324/) for the exact chi-square/Poisson method.
 
----
+## Browser usage
 
-## 📐 Mathematical Formulations
+1. Open **web/index.html** in current Chrome, Firefox, Safari, or Edge.
+2. Enter observed and expected deaths, choose a confidence level, and select **Calculate SMR**.
+3. For stratified analysis, upload a CSV (2 MB limit, 10,000 data rows max) or paste CSV text and choose **Analyze strata**.
+4. Download the overall and per-stratum results via **Download results CSV**.
 
-### MELD-Na Score
-```
-MELD = 3.78*ln(bilirubin) + 11.2*ln(INR) + 9.57*ln(creatinine) + 6.43
-MELD-Na = MELD + 1.32*(137-Na) - [0.033*MELD*(137-Na)]
-Score bounded: 6-40 per UNOS guidelines
-```
+Example input:
 
-### QTc (Bazett's Formula)
-```
-QTc = QT / sqrt(RR in seconds)
-RR = 60 / HR (if RR not provided)
-```
+~~~csv
+stratum,observed,expected
+Age 45-64,12,10.5
+Age 65+,33,25.5
+~~~
 
-### HbA1c to eAG Conversion
-```
-eAG (mg/dL) = 28.7 * HbA1c - 46.7
-```
+**Privacy:** Browser CSV parsing, calculation and download remain on the client. The static app makes no API requests and stores no data in browser storage. Do not submit identifiable data to the legacy audit API: a pattern-matching identifier guard is not comprehensive de-identification or a HIPAA-compliance guarantee.
 
-### APRI Score
-```
-APRI = (AST / AST_ULN) / platelets * 100
-```
+## Python CLI
 
-### FIB-4 Score
-```
-FIB-4 = (age * AST) / (platelets * sqrt(ALT))
-```
+Requires Python 3.10+. Install in a checkout:
 
----
+~~~bash
+python -m pip install -e ".[test]"
+python -m smr smr --observed 45 --expected 36 --confidence 0.95
+python -m smr single --json '{"observed":45,"expected":36}'
+python -m smr batch --input sample_smr.csv --output results.csv
+~~~
 
-## 💻 Installation
+Python API:
 
-### Prerequisites
-- Python 3.10, 3.11, or 3.12
-- pip (Python package manager)
+~~~python
+from smr_core import calculate_smr, calculate_smr_strata
 
-### Setup
-```bash
-# Clone the repository
-git clone https://github.com/abusuraihsakhri/smr-calculator.git
-cd smr-calculator
+result = calculate_smr(45, 36)
+stratified = calculate_smr_strata([
+    {"observed": 12, "expected": 10.5},
+    {"observed": 33, "expected": 25.5},
+])
+~~~
 
-# Install dependencies
-pip install fastapi uvicorn pydantic
+## Optional FastAPI server
 
-# Or install with test dependencies
-pip install -e ".[test]"
-```
-
----
-
-## 🚀 Usage
-
-### 1. Command Line Interface
-
-#### Single Calculation
-```bash
-# MELD-Na Score
-python -m smr single --bili 2.0 --creat 1.5 --inr 1.2 --na 135
-
-# QTc Correction
-python -m smr single --qt 400 --hr 70
-
-# BMI Z-Score
-python -m smr single --json '{"weight_kg": 70, "height_cm": 175, "age_months": 60, "sex": "M"}'
-```
-
-#### Batch CSV Processing
-```bash
-python -m smr batch --input sample.csv --output results.csv
-```
-
-### 2. Interactive CLI
-```bash
-python cli.py audit --task-id TASK-001 --primary 28.5 --secondary 14.2
-python cli.py chat "Explain MELD-Na scoring"
-python cli.py verify-audit
-```
-
-### 3. REST API Server
-```bash
+~~~bash
 python cli.py serve --host 127.0.0.1 --port 8000
-```
+curl http://127.0.0.1:8000/api/smr -H 'Content-Type: application/json' \
+  -d '{"observed":45,"expected":36,"confidence_level":0.95}'
+~~~
 
-API Endpoints:
-- `GET /health` - Health check
-- `GET /metrics` - Prometheus metrics
-- `POST /api/audit` - Submit task for evaluation
-- `POST /api/chat` - Supervisory chat
-- `GET /api/audit/logs` - Audit trail
+The server serves the browser interface at http://127.0.0.1:8000/ and retains the existing audit, chat, health, and metrics endpoints. The audit trail is **in-memory**, not a persistent compliance-grade ledger. Docker users must explicitly set a strong **AUDIT_SECRET_KEY** before running Docker Compose.
 
-### 4. Docker Deployment
-```bash
-# Build and run
-docker build -t smr-calculator .
-docker run -p 8000:8000 -e AUDIT_SECRET_KEY=your-secret smr-calculator
+Legacy clinical utilities (MELD-Na, QTc, HbA1c/eAG, APRI, FIB-4) and audit CLI commands are retained for compatibility. The former generic **calculate_score** is a demonstration, *not* an SMR or clinically validated score. The historical pediatric BMI-Z estimate is a simplified, unvalidated approximation, **not** a WHO LMS reference score. The legacy chat is a deterministic mock, not an actual clinical decision-support service.
 
-# Or use docker-compose
-AUDIT_SECRET_KEY=your-secret docker-compose up
-```
+## Testing
 
----
+~~~bash
+python -m pip install -e ".[test]"
+python -m pytest -q
+node --test tests/test_smr_js.cjs
+node --check web/smr.js
+node --check web/app.js
+python -m compileall -q smr.py smr_core.py agents
+~~~
 
-## 📊 Input Data Schema
+CI runs the Python test suite against versions 3.10–3.12 and the browser mathematics tests using Node.js 22. Browser execution requires no Pyodide, Python runtime, or backend.
 
-### CSV Format for Batch Processing
-
-| Field | Description | Used By |
-|:------|:------------|:--------|
-| `bilirubin` | Bilirubin level (mg/dL) | MELD-Na |
-| `creatinine` | Creatinine level (mg/dL) | MELD-Na |
-| `inr` | International Normalized Ratio | MELD-Na |
-| `sodium` | Sodium level (mEq/L) | MELD-Na |
-| `qt_ms` | QT interval (ms) | QTc |
-| `hr_bpm` | Heart rate (bpm) | QTc |
-| `weight_kg` | Weight in kilograms | BMI-Z |
-| `height_cm` | Height in centimeters | BMI-Z |
-| `hba1c_percent` | HbA1c percentage | HbA1c |
-| `ast_u_l` | AST level (U/L) | APRI/FIB-4 |
-| `alt_u_l` | ALT level (U/L) | FIB-4 |
-| `platelets_109` | Platelet count (10^9/L) | APRI/FIB-4 |
-
----
-
-## 🛡️ Security & Enterprise Architecture
-
-* **Zero-PHI Outbound Interceptor:** Active regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation
-* **Configurable Secret Key:** Set `AUDIT_SECRET_KEY` environment variable for production (no hardcoded defaults)
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational metrics
-
-### Security Configuration
-```bash
-# Set audit secret key (required for production)
-export AUDIT_SECRET_KEY="your-secure-random-key"
-
-# Generate a secure key
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
----
-
-## 🧪 Testing & Verification
-
-### Run All Tests
-```bash
-pytest -v
-```
-
-### Run Specific Test Suites
-```bash
-# Clinical calculation tests
-pytest tests/test_smr_functions.py -v
-
-# Enterprise agent tests
-pytest tests/test_smr_calculator.py -v
-
-# Enrichment engine tests
-pytest tests/test_enrichment.py -v
-```
-
-### Run Simulation Benchmark
-```bash
-python simulator.py 1000
-```
-
----
-
-## 🐳 Container Deployment
-
-```bash
-# Build
-docker build -t smr-calculator .
-
-# Run with custom secret
-docker run -p 8000:8000 -e AUDIT_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))") smr-calculator
-
-# Docker Compose
-AUDIT_SECRET_KEY=your-secret docker-compose up
-```
-
----
-
-## 📁 Project Structure
-
-```
-smr-calculator/
-├── smr.py                 # Core clinical calculation functions
-├── cli.py                 # Command line interface
-├── simulator.py           # High-throughput testing simulator
-├── enrichment.py          # Feature enrichment engines
-├── agents/                # Enterprise agent framework
-│   ├── __init__.py
-│   ├── base.py           # Security, PHI guard, HMAC audit
-│   ├── models.py         # Pydantic data models
-│   ├── supervisor.py     # Task orchestrator
-│   ├── workers.py        # Specialized evaluation workers
-│   ├── api.py            # FastAPI REST server
-│   ├── llm_factory.py    # LLM provider factory
-│   ├── learning.py       # Bayesian calibration engine
-│   ├── metrics.py        # Prometheus metrics
-│   └── streamer.py       # WebSocket telemetry
-├── tests/                # Test suite
-│   ├── test_smr_calculator.py
-│   ├── test_smr_functions.py
-│   └── test_enrichment.py
-├── web/                  # Web interface
-├── Dockerfile
-├── docker-compose.yml
-├── pyproject.toml
-└── README.md
-```
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+**License:** [MIT](LICENSE).
