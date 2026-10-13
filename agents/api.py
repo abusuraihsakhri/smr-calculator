@@ -1,10 +1,13 @@
 """
 FastAPI REST API Server for Smr Calculator.
 """
+from pathlib import Path
 from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from .base import AuditLogger, PHIGuard
+from smr_core import calculate_smr
 from .models import SystemTaskPayload, ConsensusDossier
 from .supervisor import SystemSupervisor
 
@@ -15,6 +18,20 @@ app = FastAPI(
     description="Enterprise Distributed Component Platform (Clinical & Biomedical AI)",
     version="3.0.0-ENTERPRISE",
 )
+
+
+class SMRRequest(BaseModel):
+    observed: int = Field(ge=0)
+    expected: float = Field(gt=0)
+    confidence_level: float = Field(default=0.95, gt=0, lt=1)
+
+
+@app.post("/api/smr")
+def api_smr(payload: SMRRequest):
+    try:
+        return calculate_smr(payload.observed, payload.expected, payload.confidence_level)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class ChatRequest(BaseModel):
@@ -53,3 +70,8 @@ def api_chat(req: ChatRequest):
 @app.get("/api/audit/logs")
 def api_audit_logs():
     return {"audit_trail": AuditLogger.get_trail(), "verified": AuditLogger.verify_integrity()}
+
+
+# Static browser calculator; mount after API routes so API paths win.
+WEB_DIRECTORY = Path(__file__).resolve().parent.parent / "web"
+app.mount("/", StaticFiles(directory=WEB_DIRECTORY, html=True), name="calculator")
