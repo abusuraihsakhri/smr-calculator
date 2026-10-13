@@ -35,7 +35,7 @@ def test_stratified_aggregation():
 @pytest.mark.parametrize(
     "observed,expected",
     [(-1, 1), (1.2, 1), (True, 1), ("", 1), (2, 0), (1, -1),
-     (1, float("inf")), (1, float("nan")), (1, True)],
+     (1, float("inf")), (1, float("nan")), (1, 1e-320), (1, True)],
 )
 def test_reject_bad_counts(observed, expected):
     with pytest.raises(ValueError):
