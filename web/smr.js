@@ -99,6 +99,9 @@
       method: 'Garwood exact Poisson (fixed expected count)'
     };
   }
+  function validate(observed, expected) {
+    return { observed: observedCount(observed), expected: expectedCount(expected) };
+  }
   function aggregate(rows, confidenceLevel = 0.95) {
     if (!Array.isArray(rows) || !rows.length) throw new RangeError('At least one stratum is required.');
     let observed = 0, expected = 0;
@@ -113,5 +116,5 @@
     if (observed > 10000000) throw new RangeError('Total observed deaths exceed 10,000,000.');
     return { ...calculate(observed, expected, confidenceLevel), strata_count: rows.length };
   }
-  return { calculate, aggregate, chiSquareQuantile };
+  return { calculate, aggregate, validate, chiSquareQuantile };
 });
