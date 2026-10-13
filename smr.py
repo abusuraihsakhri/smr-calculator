@@ -5,6 +5,7 @@ SMR, exact Poisson CI and excess deaths from observed/expected stratum CSV.
 Stdlib only.
 """
 import argparse, csv, sys, math
+from smr_core import calculate_smr, calculate_smr_strata
 
 
 def calculate_score(**kwargs):
@@ -15,7 +16,7 @@ def calculate_score(**kwargs):
     # distinct per-project via slug hash
     h = sum(ord(c) for c in "smr-calculator") % 10
     score = sum(vals) * (0.9 + h * 0.02) + math.log1p(len(vals))
-    return {"score": round(score, 2), "inputs": len(vals)}
+    return {"score": round(score, 2), "inputs": len(vals), "warning": "Legacy demonstration score; not a clinically validated score or SMR."}
 
 
 def _safe_float(value, default=0.0):
@@ -103,7 +104,7 @@ def calculate_bmi_z(weight_kg, height_cm, age_months=60, sex="M"):
 
     bmi = weight / (height_m ** 2)
 
-    # Simplified WHO reference median BMI for age (approximate)
+    # Educational approximation only. This is NOT the sex- and age-specific WHO LMS method.
     # Median BMI at various ages (simplified model)
     if age_m <= 24:
         median_bmi = 16.0
@@ -125,6 +126,7 @@ def calculate_bmi_z(weight_kg, height_cm, age_months=60, sex="M"):
         "z_score": round(z_score, 2),
         "percentile": round(50 + z_score * 25, 1),  # rough approximation
         "interpretation": "overweight" if z_score > 2 else "normal" if z_score > -2 else "underweight",
+        "method_note": "Illustrative approximation only; not a validated WHO BMI-for-age Z-score.",
         "inputs": {"weight_kg": weight, "height_cm": height_cm, "age_months": age_m, "sex": sex}
     }
 
@@ -197,7 +199,10 @@ def calculate_apri_fib4(ast_u_l, alt_u_l=None, platelets_109=None, age_years=Non
 
 def assess_row(row):
     try:
-        # try common lab keys
+        # Prioritize the repository's primary observed/expected calculation.
+        if "observed" in row or "expected" in row:
+            return calculate_smr(row.get("observed"), row.get("expected"))
+        # Legacy clinical utilities retained for compatibility
         if "bilirubin" in row and "creatinine" in row:
             return calculate_meld_na(
                 row.get("bilirubin"), row.get("creatinine"), row.get("inr"),
@@ -237,8 +242,10 @@ def process_csv(inp, out):
     # union fieldnames
     all_keys=set()
     for rr in results: all_keys.update(rr.keys())
-    # keep original first
-    extra = [k for k in all_keys if k not in fieldnames]
+    if fieldnames is None:
+        raise ValueError("Input CSV requires a header row")
+    # Keep original columns first and other fields in a reproducible order.
+    extra = sorted(k for k in all_keys if k not in fieldnames)
     with open(out, "w", newline="", encoding="utf-8") as f:
         w=csv.DictWriter(f, fieldnames=list(fieldnames)+extra); w.writeheader(); w.writerows(results)
     return results
@@ -250,12 +257,22 @@ def build_parser():
     s.add_argument("--json", help='JSON of inputs e.g. bil')
     s.add_argument("--bili", type=float); s.add_argument("--creat", type=float); s.add_argument("--inr", type=float); s.add_argument("--na", type=float)
     s.add_argument("--qt", type=float); s.add_argument("--rr", type=float); s.add_argument("--hr", type=float)
+    q=sub.add_parser("smr", help="calculate standardized mortality ratio with exact Poisson CI")
+    q.add_argument("--observed", type=int, required=True)
+    q.add_argument("--expected", type=float, required=True)
+    q.add_argument("--confidence", type=float, default=0.95)
     b=sub.add_parser("batch", help="batch csv"); b.add_argument("--input", required=True); b.add_argument("--output", required=True)
     return p
 
 def main(argv=None):
     import json as _json
     p=build_parser(); a=p.parse_args(argv)
+    if a.cmd=="smr":
+        try:
+            print(_json.dumps(calculate_smr(a.observed, a.expected, a.confidence), indent=2))
+            return 0
+        except ValueError as exc:
+            p.error(str(exc))
     if a.cmd=="single":
         if a.json:
             row=_json.loads(a.json)
