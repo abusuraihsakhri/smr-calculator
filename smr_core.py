@@ -117,6 +117,8 @@ def calculate_smr(
     lower = _chi2_quantile(alpha / 2, 2 * o) / (2 * e) if o else 0.0
     upper = _chi2_quantile(1 - alpha / 2, 2 * (o + 1)) / (2 * e)
     ratio = o / e
+    if not all(math.isfinite(x) for x in (ratio, lower, upper, o - e)):
+        raise ValueError("Input magnitude produces a non-finite SMR or confidence limit")
     return {
         "observed": o,
         "expected": e,
