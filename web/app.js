@@ -83,8 +83,8 @@
         observed: values[observed].trim(), expected: values[expected].trim()
       };
       // Validate each row even when the aggregate would otherwise appear valid.
-      SMR.calculate(record.observed, record.expected);
-      return record;
+      const counts = SMR.validate(record.observed, record.expected);
+      return {...record, observed: counts.observed, expected: counts.expected};
     });
   }
 
@@ -155,7 +155,7 @@
     return '"' + text.replace(/"/g, '""') + '"';
   }
 
-  byId('csv-export').addEventListener('click', () => {
+  byId('csv-export').addEventListener('click', async () => {
     if (!latest) return;
     const result = latest.result;
     const lines = [
@@ -163,11 +163,23 @@
       ['overall', 'all strata', result.observed, result.expected, result.smr,
         result.ci_lower, result.ci_upper, result.confidence_level, result.excess_deaths]
     ];
-    latest.rows.forEach(row => {
-      const item = SMR.calculate(row.observed, row.expected, result.confidence_level);
-      lines.push(['stratum', row.stratum, item.observed, item.expected, item.smr,
-        item.ci_lower, item.ci_upper, item.confidence_level, item.excess_deaths]);
-    });
+    const button = byId('csv-export');
+    button.disabled = true;
+    try {
+      for (let i = 0; i < latest.rows.length; i++) {
+        const row = latest.rows[i];
+        const item = SMR.calculate(row.observed, row.expected, result.confidence_level);
+        lines.push(['stratum', row.stratum, item.observed, item.expected, item.smr,
+          item.ci_lower, item.ci_upper, item.confidence_level, item.excess_deaths]);
+        if (i % 100 === 99) {
+          button.textContent = 'Preparing ' + (i + 1) + '/' + latest.rows.length;
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+    } finally {
+      button.textContent = 'Download results CSV';
+      button.disabled = false;
+    }
     const blob = new Blob([lines.map(line => line.map((value, index) => csvCell(value, index)).join(',')).join('\r\n') + '\r\n'],
       {type: 'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
