@@ -92,6 +92,9 @@
     const lower = o === 0 ? 0 : chiSquareQuantile(alpha / 2, 2 * o) / (2 * e);
     const upper = chiSquareQuantile(1 - alpha / 2, 2 * (o + 1)) / (2 * e);
     const ratio = o / e;
+    if (![ratio, lower, upper, o - e].every(Number.isFinite)) {
+      throw new RangeError('Input magnitude produces a non-finite SMR or confidence limit.');
+    }
     return {
       observed: o, expected: e, smr: ratio, smr_per_100: ratio * 100,
       ci_lower: lower, ci_upper: upper, confidence_level: confidenceLevel,
