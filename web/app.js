@@ -151,7 +151,7 @@
   function csvCell(value, columnIndex) {
     let text = String(value);
     // Protect spreadsheet imports against CSV formula injection from labels.
-    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    if (columnIndex === 1 && /^[\s]*[=+@-]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   }
 
