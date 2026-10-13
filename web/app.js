@@ -157,7 +157,7 @@
 
   byId('csv-export').addEventListener('click', async () => {
     if (!latest) return;
-    const result = latest.result;
+    const {rows, result} = latest;
     const lines = [
       ['type', 'stratum', 'observed', 'expected', 'smr', 'ci_lower', 'ci_upper', 'confidence_level', 'excess_deaths'],
       ['overall', 'all strata', result.observed, result.expected, result.smr,
@@ -166,13 +166,13 @@
     const button = byId('csv-export');
     button.disabled = true;
     try {
-      for (let i = 0; i < latest.rows.length; i++) {
-        const row = latest.rows[i];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         const item = SMR.calculate(row.observed, row.expected, result.confidence_level);
         lines.push(['stratum', row.stratum, item.observed, item.expected, item.smr,
           item.ci_lower, item.ci_upper, item.confidence_level, item.excess_deaths]);
         if (i % 100 === 99) {
-          button.textContent = 'Preparing ' + (i + 1) + '/' + latest.rows.length;
+          button.textContent = 'Preparing ' + (i + 1) + '/' + rows.length;
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
